@@ -1,5 +1,6 @@
 ﻿using BoneLib;
 using Jevil;
+using HarmonyLib;
 using Jevil.Patching;
 using Jevil.Prefs;
 using MelonLoader;
@@ -12,6 +13,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using SLZ.Combat;
+using PuppetMasta;
 
 namespace Showstopper;
 
@@ -20,7 +23,7 @@ public static class BuildInfo
     public const string Name = "Showstopper!"; // Name of the Mod.  (MUST BE SET)
     public const string Author = "extraes"; // Author of the Mod.  (Set as null if none)
     public const string Company = null; // Company that made the Mod.  (Set as null if none)
-    public const string Version = "1.0.0"; // Version of the Mod.  (MUST BE SET)
+    public const string Version = "1.1.0"; // Version of the Mod.  (MUST BE SET)
     public const string DownloadLink = null; // Download Link for the Mod.  (Set as null if none)
 }
 
@@ -38,6 +41,7 @@ public class Showstopper : MelonMod
     //[Pref("If true: unfreezes using rigidbodies found from its grip; If false: unfreezes using rigidbodies found from poolee check")]
     //static bool findUnfreezeBodiesViaGrip = true;
     [Pref] static bool unfreezeOnGrab = true;
+    [Pref("WARNING: This is inconsistent! I don't know why! Projectiles might not continue after unfreezing!")] static bool freezeProjectiles = false;
     [Pref] static UnfreezeFindMode unfreezeFindMode = UnfreezeFindMode.AUTO;
 
     public override void OnInitializeMelon()
@@ -181,6 +185,7 @@ public class Showstopper : MelonMod
 #endif
 
         if (!unfreezeOnGrab) return;
+        if (grabbedObj.transform.InHierarchyOf(Const.RigManagerName)) return;
         Rigidbody[] rbs = GetRigidbodies(grabbedObj);
 
 #if DEBUG
@@ -236,6 +241,19 @@ public class Showstopper : MelonMod
     static void RestoreRigidbody(Rigidbody rb)
     {
         if (states.TryGetValue(rb, out RigidbodyState state)) state.ApplyTo(rb);
+    }
+
+    [HarmonyPatch(typeof(Projectile), nameof(Projectile.Update))]
+    public static class ProjectilePatch
+    {
+        public static bool Prefix(/*Projectile __instance*/)
+        {
+            bool ret = !(freezeProjectiles && frozen);
+#if DEBUG
+            //Log($"PROJECTILE UPDATE PATCH: PATH='{__instance.transform.GetFullPath()}', RET={ret}");
+#endif
+            return ret;
+        }
     }
 
     #region MelonLogger replacements
